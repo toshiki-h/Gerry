@@ -4,8 +4,14 @@ import json
 import os
 import argparse
 import glob
-import time
+import logging
+import tqdm
 
+
+class HTTPExecption(Exception):
+    def __init__(self, status_code):
+        super().__init__('HTTPExecption')
+        self.status_code = status_code
 
 def split_time_frame(from_datetime, to_datetime, delta):
 	result = []
@@ -17,102 +23,132 @@ def split_time_frame(from_datetime, to_datetime, delta):
 		time_frame_end += delta
 	return result
 
-def date_to_string(date):
+def datetime_to_string(date):
 	return date.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
-
 class GerryCrawlRun(object):
-	def __init__(self, name, url, start_date, end_date=datetime.datetime(2018, 6, 1)):
+	def __init__(self, name, url, start_date, end_date, crawl_directory='./gerry_data/'):
 		self.name = name
 		self.url = url
+		self.crawl_directory = crawl_directory + self.name + '/'
 		self.start_date = start_date
 		self.end_date = end_date
 
-	def download_changes(self, from_date, to_date):
-		url = '%s/changes/?q=after:{%s} AND before:{%s}&o=DETAILED_LABELS&o=MESSAGES&o=DETAILED_ACCOUNTS&o=REVIEWED&o=ALL_FILES&o=ALL_COMMITS&o=ALL_REVISIONS' % (self.url, date_to_string(from_date), date_to_string(to_date))
+	def get_changes(self, from_datetime, to_datetime, offset):
+		url = '%s/changes/?q=after:{%s} AND before:{%s} AND is:closed&S=%i' % (self.url, datetime_to_string(from_datetime), datetime_to_string(to_datetime), offset)
+		response = requests.get(url)
+		response = requests.get(url)
+		if response.status_code >= 200 and response.status_code < 300:
+			return json.loads(response.text[5:])
+		else:
+			raise HTTPExecption(response.status_code)
+
+	def get_change_details(self, change_number):
+		url = '%s/changes/%s/detail/?o=DETAILED_LABELS&o=MESSAGES&o=DETAILED_ACCOUNTS&o=REVIEWED&o=ALL_FILES&o=ALL_COMMITS&o=ALL_REVISIONS' % (self.url, change_number)
+
 		if self.name != 'libreoffice':
 			url += '&o=REVIEWER_UPDATES'
-		try:
-			response = requests.get(url)
-			if response.status_code >= 200 and response.status_code<300:
-				return json.loads(response.text[5:])
+		response = requests.get(url)
+		if response.status_code >= 200 and response.status_code < 300:
+			return json.loads(response.text[5:])
+		else:
+			raise HTTPExecption(response.status_code)
+		
+	def get_changes_on_day(self, day):
+		from_datetime = day
+		to_datetime = from_datetime + datetime.timedelta(hours=24) + datetime.timedelta(milliseconds=-1)
+		more_changes = True
+		changes = []
+		offset = 0
+
+		while more_changes:
+			changes_on_date = []
+			try:
+				changes_subset = self.get_changes(from_datetime, to_datetime, offset)
+			except ValueError:
+				log.error('Reading JSON for changes between %s and %s (offset %i) failed' % (from_datetime, to_datetime, offset) )
+			except HTTPExecption as e:
+				log.error('Crawling JSON for changes between %s and %s (offset %i) failed with HTTP status %i' % (from_datetime, to_datetime, offset, e.status_code) )
+			
+			if changes_subset:
+				more_changes = '_more_changes' in changes_subset[-1]
+				changes += changes_subset
 			else:
-				print(response.status_code, 'for', url)
-				return []
-		except Exception as e:
-			print(e)
-			print(response.url)
-			print(response.text)
-			print(response.status_code)
-			return []
+				more_changes = False
+			offset += len(changes_subset)
+		return changes
 
-	def create_data_structure(self, crawl_directory='./gerry_data/'): 
-		self.crawl_directory = crawl_directory + self.name + '/'
-
-		for time_frame in split_time_frame(self.start_date, self.end_date, datetime.timedelta(hours=1)):
+	def crawl(self, end_date):
+		for time_frame in split_time_frame(self.start_date, end_date, datetime.timedelta(hours=24)):
 			day_str = time_frame[0].strftime('%Y-%m-%d')
 			os.makedirs(self.crawl_directory + day_str, exist_ok=True)
 
-	def refined_crawl(self, from_datetime, to_datetime, i=0):
-		def needs_smaller_time_frame(changes, i):
-			if changes:
-				return '_more_changes' in changes[-1] or len(changes) >= 500
-			else:
-				return False
-
-		deltas = [datetime.timedelta(hours=24), datetime.timedelta(hours=12), datetime.timedelta(hours=1), datetime.timedelta(minutes=30), datetime.timedelta(minutes=1), datetime.timedelta(seconds=1)]
-
-		changes = []
-		if i < len(deltas):
-			for time_frame in split_time_frame(from_datetime, to_datetime, deltas[i]):
-				changes_ = self.download_changes(time_frame[0], time_frame[1])
-				if needs_smaller_time_frame(changes_, i):
-					changes += self.refined_crawl(time_frame[0], time_frame[1], i+1)
-				else:
-					changes += changes_
-		else:
-			print('Too many changes between', from_datetime, 'and', to_datetime)
-		return changes
-
-	def crawl(self):
 		all_folders = glob.glob(self.crawl_directory + '*')
 		l = len(all_folders)
-		for index, folder in enumerate(sorted(all_folders)):
+		log.info(str(l) + ' days to crawl')
+
+		change_numbers = []
+
+		for index, folder in enumerate(tqdm.tqdm(sorted(all_folders))):
+			change_numbers = []
 			if os.listdir(folder):
-				print(folder.split('/')[-1], 'has been already crawled')
+				log.info(folder.split('/')[-1] + ' has been already crawled')
 			else:
-				start_time = datetime.datetime.now()
-				from_datetime = datetime.datetime.strptime(folder.split('/')[-1], '%Y-%m-%d')
-				to_datetime = from_datetime + datetime.timedelta(hours=24) 
-				changes = self.refined_crawl(from_datetime, to_datetime)
+				day = datetime.datetime.strptime(folder.split('/')[-1], '%Y-%m-%d')
+				changes = []
+				try:
+					changes = self.get_changes_on_day(day)
+				except ValueError:
+					log.error('Reading JSON for changes between %s and %s (offset %i) failed' % (from_datetime, to_datetime, offset) )
+				except HTTPExecption as e:
+					log.error('Crawling JSON for changes between %s and %s (offset %i) failed with HTTP status %i' % (from_datetime, to_datetime, offset, e.status_code) )
 
-				for change in changes:
-					file_name = folder + '/' + change['id'] + '.json'
-					with open(file_name, 'w') as json_file:
-						json.dump(change, json_file)
-				process_time = datetime.datetime.now() - start_time
+				change_numbers += [change['_number'] for change in changes]
 
-				print('%s (%i changes) took %s (status: %.2f%% | %s left)' % (from_datetime.strftime('%Y-%m-%d'), len(changes), process_time, index/l*100.0, (l-index)*process_time))
+			l = len(change_numbers)
+
+			for index, change_number in enumerate(change_numbers):
+				change = self.get_change_details(change_number)
+				file_name = folder + '/' + str(change_number) + '.json'
+				with open(file_name, 'w') as json_file:
+					json.dump(change, json_file)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 
-	gerry_instances = {
-		'openstack': GerryCrawlRun('openstack', 'https://review.openstack.org', datetime.datetime(2011, 7, 1)), 
-		'chromium': GerryCrawlRun('chromium', 'https://chromium-review.googlesource.com', datetime.datetime(2011, 4, 1)), 
-		'gerrit': GerryCrawlRun('gerrit', 'https://gerrit-review.googlesource.com', datetime.datetime(2008, 7, 1)),
-		'android': GerryCrawlRun('android', 'https://android-review.googlesource.com', datetime.datetime(2008, 7, 1)),
-		'golang': GerryCrawlRun('golang', 'https://go-review.googlesource.com', datetime.datetime(2014, 11, 1)),
-		'libreoffice': GerryCrawlRun('libreoffice', 'https://gerrit.libreoffice.org', datetime.datetime(2012, 3, 1)),
-		'eclipse': GerryCrawlRun('eclipse', 'https://git.eclipse.org/r', datetime.datetime(2009, 10, 1)),
-		'wikimedia': GerryCrawlRun('wikimedia', 'https://gerrit.wikimedia.org/r', datetime.datetime(2011, 9, 1)),
-		'onap': GerryCrawlRun('onap', 'https://gerrit.onap.org/r', datetime.datetime(2017, 1, 1))
-	}
+	data = {
+		'openstack': {'url': 'https://review.openstack.org', 'start_datetime': datetime.datetime(2011, 7, 1)},
+		'chromium': {'url': 'https://chromium-review.googlesource.com', 'start_datetime': datetime.datetime(2011, 4, 1)},
+		'gerrit': {'url': 'https://gerrit-review.googlesource.com', 'start_datetime': datetime.datetime(2008, 7, 1)},
+		'android': {'url': 'https://android-review.googlesource.com', 'start_datetime': datetime.datetime(2008, 7, 1)},
+		'golang': {'url': 'https://go-review.googlesource.com', 'start_datetime': datetime.datetime(2014, 11, 1)},
+		'libreoffice': {'url': 'https://gerrit.libreoffice.org', 'start_datetime': datetime.datetime(2012, 3, 1)},
+		'eclipse': {'url': 'https://git.eclipse.org/r', 'start_datetime': datetime.datetime(2009, 10, 1)},
+		'wikimedia': {'url': 'https://gerrit.wikimedia.org/r', 'start_datetime': datetime.datetime(2011, 9, 1)},
+		'onap': {'url': 'https://gerrit.onap.org/r', 'start_datetime': datetime.datetime(2017, 1, 1)},
+	}	
 
-	parser = argparse.ArgumentParser("gerry")
-	parser.add_argument('gerry_instance', choices=list(gerry_instances))
+	parser = argparse.ArgumentParser('gerry')
+	parser.add_argument('gerry_instance', choices=list(data))
 	parser.add_argument('--crawl_directory', dest='crawl_directory', default='./gerry_data/')
 	args = parser.parse_args()
 
-	gerry_instances[args.gerry_instance].create_data_structure(args.crawl_directory)
-	gerry_instances[args.gerry_instance].crawl()
+	os.makedirs(args.crawl_directory, exist_ok=True)
+
+	log = logging.getLogger('gerry')
+	log.setLevel(logging.DEBUG)
+
+	log_name = args.crawl_directory + 'crawl-' + str(args.gerry_instance) + '.log'
+	formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
+
+	file_handler = logging.FileHandler(log_name)
+	file_handler.setFormatter(formatter)
+	log.addHandler(file_handler)
+
+	# stream_handler = logging.StreamHandler()
+	# stream_handler.setFormatter(formatter)
+	# log.addHandler(stream_handler)
+
+	gerry_instance = GerryCrawlRun(args.gerry_instance, data[args.gerry_instance]['url'], data[args.gerry_instance]['start_datetime'], args.crawl_directory)
+	gerry_instance.crawl(datetime.datetime(2018, 7, 1))
+
