@@ -13,7 +13,7 @@ log = logging.getLogger('gerry')
 def config_logging(data_dir):
     global log
     log.setLevel(logging.DEBUG)
-    log_name = data_dir + 'gerry-crawl.log'
+    log_name = os.path.join(data_dir, 'gerry-crawl.log')
     formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
     file_handler = logging.FileHandler(log_name)
     file_handler.setFormatter(formatter)
@@ -21,16 +21,15 @@ def config_logging(data_dir):
     return log
 
 
-def create_time_frames(from_datetime, to_datetime, frame_size):
-    ### [from_datetime, to_datetime[
+def split_time_frame(from_datetime, to_datetime, delta):
     result = []
     time_frame_start = from_datetime
-    time_frame_end = from_datetime + frame_size + \
+    time_frame_end = from_datetime + delta + \
         datetime.timedelta(milliseconds=-1)
     while time_frame_end <= to_datetime:
         result += [(time_frame_start, time_frame_end)]
-        time_frame_start += frame_size
-        time_frame_end += frame_size
+        time_frame_start += delta
+        time_frame_end += delta
     return result
 
 
@@ -42,7 +41,7 @@ class GerryCrawler(object):
     def __init__(self, name, url, start_date, end_date, directory='./gerry_data/'):
         self.name = name
         self.url = url
-        self.directory = directory + self.name + '/'
+        self.directory = os.path.join(directory, name)
         self.start_date = start_date
         self.end_date = end_date
         os.makedirs(self.directory, exist_ok=True)
@@ -80,21 +79,21 @@ class GerryCrawler(object):
         return changes
 
     def run(self):
-        for time_frame in create_time_frames(self.start_date, self.end_date, datetime.timedelta(hours=24)):
+        for time_frame in split_time_frame(self.start_date, self.end_date, datetime.timedelta(hours=24)):
             day_str = time_frame[0].strftime('%Y-%m-%d')
-            os.makedirs(self.directory + 'changes/' + day_str, exist_ok=True)
+            os.makedirs(os.path.join(self.directory, 'changes', day_str), exist_ok=True)
 
-        all_folders = glob.glob(self.directory + 'changes/*')
+        all_folders = glob.glob(os.path.join(self.directory, 'changes', '*'))
         l = len(all_folders)
         log.info(str(l) + ' days to crawl')
 
         for index, folder in enumerate(tqdm.tqdm(sorted(all_folders))):
             change_numbers = []
+            day_string = os.path.split(folder)[1]
             if os.listdir(folder):
-                log.info(folder.split('/')[-1] + ' has been already crawled')
+                log.info(day_string + ' has been already crawled')
             else:
-                day = datetime.datetime.strptime(
-                    folder.split('/')[-1], '%Y-%m-%d')
+                day = datetime.datetime.strptime(day_string, '%Y-%m-%d')
                 changes = self.get_changes(day)
 
                 change_numbers += [change['_number'] for change in changes]
@@ -110,8 +109,8 @@ class GerryCrawler(object):
                 if response.status_code >= 200 and response.status_code < 300:
                     try:
                         change = json.loads(response.text[5:])
-                        file_name = folder + str(change_number) + '.json'
-                        with open(file_name, 'w') as json_file:
+                        file_name = str(change_number) + '.json'
+                        with open(os.path.join(folder, file_name), 'w') as json_file:
                             json.dump(change, json_file)
                     except json.JSONDecodeError:
                         log.error('Reading JSON for change %i failed' %
