@@ -10,7 +10,7 @@ script:
  - python -m unittest test_gerry.py
   
 after_success:
-  - codecov
+  - coverage run test_gerry.py
   
 branches:
   only:
