@@ -81,9 +81,9 @@ class GerryCrawler(object):
     def run(self):
         for time_frame in split_time_frame(self.start_date, self.end_date, datetime.timedelta(hours=24)):
             day_str = time_frame[0].strftime('%Y-%m-%d')
-            os.makedirs(self.directory + '/changes/' + day_str, exist_ok=True)
+            os.makedirs(self.directory + 'changes/' + day_str, exist_ok=True)
 
-        all_folders = glob.glob(self.directory + '/changes/*')
+        all_folders = glob.glob(self.directory + 'changes/*')
         l = len(all_folders)
         log.info(str(l) + ' days to crawl')
 
