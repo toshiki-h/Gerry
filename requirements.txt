@@ -1,3 +1,2 @@
-coverage
 tqdm
 requests
