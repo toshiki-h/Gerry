@@ -21,15 +21,16 @@ def config_logging(data_dir):
     return log
 
 
-def split_time_frame(from_datetime, to_datetime, delta):
+def create_time_frames(from_datetime, to_datetime, frame_size):
+    ### [from_datetime, to_datetime[
     result = []
     time_frame_start = from_datetime
-    time_frame_end = from_datetime + delta + \
+    time_frame_end = from_datetime + frame_size + \
         datetime.timedelta(milliseconds=-1)
     while time_frame_end <= to_datetime:
         result += [(time_frame_start, time_frame_end)]
-        time_frame_start += delta
-        time_frame_end += delta
+        time_frame_start += frame_size
+        time_frame_end += frame_size
     return result
 
 
@@ -79,7 +80,7 @@ class GerryCrawler(object):
         return changes
 
     def run(self):
-        for time_frame in split_time_frame(self.start_date, self.end_date, datetime.timedelta(hours=24)):
+        for time_frame in create_time_frames(self.start_date, self.end_date, datetime.timedelta(hours=24)):
             day_str = time_frame[0].strftime('%Y-%m-%d')
             os.makedirs(self.directory + 'changes/' + day_str, exist_ok=True)
 
