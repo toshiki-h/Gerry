@@ -7,3 +7,4 @@ install:
 
 script:
   - pytest
+  - bash < (curl -s https://codecov.io/bash)
