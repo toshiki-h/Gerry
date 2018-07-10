@@ -10,7 +10,7 @@ script:
  - python -m unittest
   
 after_success:
-  - coverage
+  - coverage run
   
 branches:
   only:
