@@ -22,7 +22,7 @@ def config_logging(data_dir):
 
 
 def create_time_frames(from_datetime, to_datetime, frame_size):
-    ### [from_datetime, to_datetime[
+    # [from_datetime, to_datetime[
     result = []
     time_frame_start = from_datetime
     time_frame_end = from_datetime + frame_size + \
@@ -81,9 +81,9 @@ class GerryCrawler(object):
 
     def run(self):
         for time_frame in create_time_frames(self.start_date, self.end_date, datetime.timedelta(hours=24)):
-        for time_frame in split_time_frame(self.start_date, self.end_date, datetime.timedelta(hours=24)):
             day_str = time_frame[0].strftime('%Y-%m-%d')
-            os.makedirs(os.path.join(self.directory, 'changes', day_str), exist_ok=True)
+            os.makedirs(os.path.join(self.directory,
+                                     'changes', day_str), exist_ok=True)
 
         all_folders = glob.glob(os.path.join(self.directory, 'changes', '*'))
         l = len(all_folders)
