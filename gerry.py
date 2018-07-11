@@ -62,7 +62,7 @@ class GerryCrawler(object):
             response = None
             try:
                 response = requests.get(url)
-            except ConnectionError as e:
+            except ConnectionError:
                 log.error('Timeout while GET changes between %s and %s (offset %i)' % (
                     from_datetime, to_datetime, offset))
 
