@@ -59,9 +59,14 @@ class GerryCrawler(object):
             changes_subset = []
             url = '%s/changes/?q=after:{%s} AND before:{%s} AND is:closed&S=%i' % (
                 self.url, datetime_to_string(from_datetime), datetime_to_string(to_datetime), offset)
-            response = requests.get(url)
+            response = None
+            try:
+                response = requests.get(url)
+            except ConnectionError as e:
+                log.error('Timeout while GET changes between %s and %s (offset %i)' % (
+                    from_datetime, to_datetime, offset))
 
-            if response.status_code >= 200 and response.status_code < 300:
+            if response and response.status_code >= 200 and response.status_code < 300:
                 try:
                     changes_subset = json.loads(response.text[5:])
                 except json.JSONDecodeError:
@@ -107,8 +112,13 @@ class GerryCrawler(object):
                 if self.name != 'libreoffice':
                     url += '&o=REVIEWER_UPDATES'
 
-                response = requests.get(url)
-                if response.status_code >= 200 and response.status_code < 300:
+                response = None
+                try:
+                    response = requests.get(url)
+                except ConnectionError as e:
+                    log.error('Timeout while GET changes between %s and %s (offset %i)' % (
+                        from_datetime, to_datetime, offset))                
+                if response and response.status_code >= 200 and response.status_code < 300:
                     try:
                         change = json.loads(response.text[5:])
                         file_name = str(change_number) + '.json'
