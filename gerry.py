@@ -6,6 +6,7 @@ import argparse
 import glob
 import logging
 import tqdm
+import time
 
 log = logging.getLogger('gerry')
 
@@ -38,7 +39,7 @@ def datetime_to_string(date):
     return date.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
 
 
-class GerryCrawler(object):
+class Gerry(object):
     def __init__(self, name, url, start_date, end_date, directory='./gerry_data/'):
         self.name = name
         self.url = url
@@ -59,22 +60,14 @@ class GerryCrawler(object):
             changes_subset = []
             url = '%s/changes/?q=after:{%s} AND before:{%s} AND is:closed&S=%i' % (
                 self.url, datetime_to_string(from_datetime), datetime_to_string(to_datetime), offset)
-            response = None
-            try:
-                response = requests.get(url)
-            except ConnectionError:
-                log.error('Timeout while GET changes between %s and %s (offset %i)' % (
-                    from_datetime, to_datetime, offset))
+            response = requests.get(url)
 
             if response and response.status_code >= 200 and response.status_code < 300:
-                try:
-                    changes_subset = json.loads(response.text[5:])
-                except json.JSONDecodeError:
-                    log.error('Reading JSON for changes between %s and %s (offset %i) failed' % (
-                        from_datetime, to_datetime, offset))
+                changes_subset = json.loads(response.text[5:])
             else:
-                log.error('GET changes between %s and %s (offset %i) failed with HTTP status %i' % (
-                    from_datetime, to_datetime, offset, response.status_code))
+                if response.status_code == 429:
+                    time.sleep(10)
+                raise HTTPError(response.status_code)
 
             if changes_subset:
                 more_changes = '_more_changes' in changes_subset[-1]
@@ -84,6 +77,24 @@ class GerryCrawler(object):
             offset += len(changes_subset)
         return changes
 
+    def get_change(self, change_number):
+        url = '%s/changes/%s/detail/?o=DETAILED_LABELS&o=MESSAGES&o=DETAILED_ACCOUNTS&o=REVIEWED&o=ALL_FILES&o=ALL_COMMITS&o=ALL_REVISIONS' % (
+                    self.url, change_number)
+        if self.name != 'libreoffice':
+            url += '&o=REVIEWER_UPDATES'
+
+        response = requests.get(url)
+        if response and response.status_code >= 200 and response.status_code < 300:
+            change = json.loads(response.text[5:])
+            file_name = str(change_number) + '.json'
+            with open(os.path.join(folder, file_name), 'w') as json_file:
+                json.dump(change, json_file)
+        else:
+            if response.status_code == 429:
+                time.sleep(10)
+            raise HTTPError(response.status_code)
+
+
     def run(self):
         for time_frame in create_time_frames(self.start_date, self.end_date, datetime.timedelta(hours=24)):
             day_str = time_frame[0].strftime('%Y-%m-%d')
@@ -91,45 +102,43 @@ class GerryCrawler(object):
                                      'changes', day_str), exist_ok=True)
 
         all_folders = glob.glob(os.path.join(self.directory, 'changes', '*'))
-        l = len(all_folders)
-        log.info(str(l) + ' days to crawl')
 
-        for index, folder in enumerate(tqdm.tqdm(sorted(all_folders))):
-            change_numbers = []
-            day_string = os.path.split(folder)[1]
-            if os.listdir(folder):
-                log.info(day_string + ' has been already crawled')
-            else:
+        complete = False
+
+        while completed:
+            complete = True # oh miss you, do...while loop
+            empty_folders = [folder for folder in all_folders if os.listdir(folder)]
+
+            for folder in tqdm.tqdm(empty_folders):
+                change_numbers = []
+                changes = []
+                day_string = os.path.split(folder)[1]
+
                 day = datetime.datetime.strptime(day_string, '%Y-%m-%d')
-                changes = self.get_changes(day)
-
+                try:
+                    changes = self.get_changes(day)
+                except Exception as exception:            
+                    if isinstance(exception, ConnectionError):
+                        log.error('GET changes for day %s failed' % (day))
+                    elif isinstance(exception, json.JSONDecodeError):
+                        log.error('Reading JSON for changes %s failed' % (day))
+                    elif isinstance(exception, Exception): 
+                        log.error('Unknown error occurred for day %s: %s' % (day, e))
+                    complete = False
+                                       
                 change_numbers += [change['_number'] for change in changes]
 
-            for index, change_number in enumerate(change_numbers):
-                url = '%s/changes/%s/detail/?o=DETAILED_LABELS&o=MESSAGES&o=DETAILED_ACCOUNTS&o=REVIEWED&o=ALL_FILES&o=ALL_COMMITS&o=ALL_REVISIONS' % (
-                    self.url, change_number)
-
-                if self.name != 'libreoffice':
-                    url += '&o=REVIEWER_UPDATES'
-
-                response = None
-                try:
-                    response = requests.get(url)
-                except ConnectionError as e:
-                    log.error('Timeout while GET changes between %s and %s (offset %i)' % (
-                        from_datetime, to_datetime, offset))                
-                if response and response.status_code >= 200 and response.status_code < 300:
+                for change_number in change_numbers:
                     try:
-                        change = json.loads(response.text[5:])
-                        file_name = str(change_number) + '.json'
-                        with open(os.path.join(folder, file_name), 'w') as json_file:
-                            json.dump(change, json_file)
-                    except json.JSONDecodeError:
-                        log.error('Reading JSON for change %i failed' %
-                                  (change_number))
-                else:
-                    log.error('GET change %i failed with HTTP status %i' %
-                              (change_number, response.status_code))
+                        self.get_change(change_number)
+                    except Exception as exception:
+                        if isinstance(exception, ConnectionError):
+                            log.error('GET change %s failed' % (change_number))
+                        elif isinstance(exception, json.JSONDecodeError):
+                            log.error('Reading JSON for changes %s failed' % (change_number))
+                        elif isinstance(exception, Exception):
+                            log.error('Unknown error occurred for change %s: %s' % (change_number, exception))
+                        complete = False
 
 
 if __name__ == '__main__':
@@ -156,8 +165,8 @@ if __name__ == '__main__':
 
     os.makedirs(args.directory, exist_ok=True)
 
-    gerry_crawler = GerryCrawler(args.gerry_instance, data[args.gerry_instance]['url'],
+    gerry = Gerry(args.gerry_instance, data[args.gerry_instance]['url'],
                                  data[args.gerry_instance]['start_datetime'], datetime.datetime(2018, 7, 1), args.directory)
-    config_logging(gerry_crawler.directory)
+    config_logging(gerry.directory)
 
-    gerry_crawler.run()
+    gerry.run()
