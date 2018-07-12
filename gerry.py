@@ -100,24 +100,23 @@ class Gerry(object):
             os.makedirs(os.path.join(self.directory,
                                      'changes', day_str), exist_ok=True)
 
-        all_folders = glob.glob(os.path.join(self.directory, 'changes', '*'))
+        all_day_paths = glob.glob(os.path.join(self.directory, 'changes', '*'))
 
         complete = False
 
         while not complete:
             complete = True  # oh miss you, do...while loop
-            empty_folders = [
-                folder for folder in all_folders if os.listdir(folder)]
+            day_paths_pending = [
+                day_path for day_path in all_day_paths if os.listdir(day_path)]
 
             log.info(
-                'Started new crawl iteration to crawl %i pending days' % (empty_folders))
+                'Started new crawl iteration to crawl %i pending days' % (len(day_paths_pending)))
 
-            for folder in tqdm.tqdm(empty_folders):
+            for day_path in tqdm.tqdm(day_paths_pending):
                 change_numbers = []
                 changes = []
-                day_string = os.path.split(folder)[1]
 
-                day = datetime.datetime.strptime(day_string, '%Y-%m-%d')
+                day = datetime.datetime.strptime(os.path.split(day_path)[1], '%Y-%m-%d')
                 try:
                     changes = self.get_changes(day)
                 except Exception as exception:
