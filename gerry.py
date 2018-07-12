@@ -54,6 +54,23 @@ class Gerry(object):
         if status_code in GOOGLE_SERVER_WAITING_TIME:
             time.sleep(GOOGLE_SERVER_WAITING_TIME[status_code])
 
+    def handle_exception(exception, change_type):
+        if isinstance(exception, requests.exceptions.RequestException):
+            if exception.response != None:
+                log.error('GET %s failed with http status %i' % (
+                    change_type, exception.response.status_code))
+                Gerry.wait_for_server(
+                    exception.response.status_code)
+            else:
+                log.error('GET %s %s failed with error: %s' % (change_type,
+                                                               exception))
+        elif isinstance(exception, json.JSONDecodeError):
+            log.error(
+                'Reading JSON for %s failed' % (change_type))
+        elif isinstance(exception, Exception):
+            log.error('Unknown error occurred for %s %s: %s' % (change_type,
+                                                                exception))
+
     def get_changes(self, day):
         from_datetime = day
         to_datetime = from_datetime + \
@@ -92,23 +109,6 @@ class Gerry(object):
         with open(os.path.join(folder, file_name), 'w') as json_file:
             json.dump(change, json_file)
 
-    def handle_exception(exception, change_type):
-        if isinstance(exception, requests.exceptions.RequestException):
-            if exception.response != None:
-                log.error('GET %s failed with http status %i' % (
-                    change_type, exception.response.status_code))
-                Gerry.wait_for_server(
-                    exception.response.status_code)
-            else:
-                log.error('GET %s %s failed with error: %s' % (change_type,
-                                                              exception))
-        elif isinstance(exception, json.JSONDecodeError):
-            log.error(
-                'Reading JSON for %s failed' % (change_type))
-        elif isinstance(exception, Exception):
-            log.error('Unknown error occurred for %s %s: %s' % (change_type,
-                                                                exception))
-
     def run(self):
         for time_frame in create_time_frames(self.start_date, self.end_date, datetime.timedelta(hours=24)):
             day_str = time_frame[0].strftime('%Y-%m-%d')
@@ -145,7 +145,8 @@ class Gerry(object):
                     try:
                         self.get_change(change_number)
                     except Exception as exception:
-                        Gerry.handle_exception(exception, 'change %s' % change_number)
+                        Gerry.handle_exception(
+                            exception, 'change %s' % change_number)
                         complete = False
 
 
