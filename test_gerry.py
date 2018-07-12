@@ -1,7 +1,7 @@
 import datetime
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, mock_open
 
 import gerry
 
@@ -50,6 +50,12 @@ class Gerry(unittest.TestCase):
         changes = self.gerry.get_changes(datetime.datetime.strptime('5018-06-01', '%Y-%m-%d'))
         self.assertEqual(len(changes), 0)
 
+    @patch('json.dump')
+    @patch("builtins.open", new_callable=mock_open)
+    def test_get_change(self, mock_file, mock_dump):
+        self.gerry.get_change(109611, 'folder')
+        mock_file.assert_any_call(os.path.join('folder', '109611.json'), 'w')
+        self.assertEqual(mock_dump.call_args[0][0]['change_id'], 'Ic7bc5ad2e57eef27b0d2e13523be78e8a2d0a65c')
 
     @patch('os.makedirs')
     @patch('glob.glob')
