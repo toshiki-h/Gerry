@@ -107,7 +107,7 @@ class Gerry(object):
         while not complete:
             complete = True  # oh miss you, do...while loop
             day_paths_pending = [
-                day_path for day_path in all_day_paths if os.listdir(day_path)]
+                day_path for day_path in all_day_paths if not os.listdir(day_path)]
 
             log.info(
                 'Started new crawl iteration to crawl %i pending days' % (len(day_paths_pending)))
