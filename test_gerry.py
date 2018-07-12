@@ -33,7 +33,7 @@ class CreateTimeFrames(unittest.TestCase):
         self.assertEqual(len(timeframes), 24)
 
 
-class GerryCrawler(unittest.TestCase):
+class Gerry(unittest.TestCase):
 
     @patch('os.makedirs')
     def setUp(self, mock_makedirs):
