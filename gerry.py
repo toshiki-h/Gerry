@@ -95,7 +95,7 @@ class Gerry(object):
             offset += len(changes_subset)
         return changes
 
-    def get_change(self, change_number, to_folder):
+    def get_change(self, change_number, folder):
         url = '%s/changes/%s/detail/?o=DETAILED_LABELS&o=MESSAGES&o=DETAILED_ACCOUNTS&o=REVIEWED&o=ALL_FILES&o=ALL_COMMITS&o=ALL_REVISIONS' % (
             self.url, change_number)
         if self.name != 'libreoffice':
