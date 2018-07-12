@@ -104,7 +104,7 @@ class Gerry(object):
 
         complete = False
 
-        while not completed:
+        while not complete:
             complete = True  # oh miss you, do...while loop
             empty_folders = [
                 folder for folder in all_folders if os.listdir(folder)]
