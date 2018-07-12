@@ -1,4 +1,5 @@
 import datetime
+import os
 import unittest
 from unittest.mock import patch
 
@@ -48,6 +49,21 @@ class GerryCrawler(unittest.TestCase):
     def test_get_changes_no_data(self):
         changes = self.gerry.get_changes(datetime.datetime.strptime('5018-06-01', '%Y-%m-%d'))
         self.assertEqual(len(changes), 0)
+
+    @patch('os.makedirs')
+    @patch('glob.glob')
+    @patch('os.listdir')
+    @patch('gerry.Gerry.get_change')
+    def test_run(self, mock_get_change, mock_listdir, mock_glob, mock_makedirs):
+        mock_makedirs.return_value = True
+        mock_glob.return_value = [os.path.join(self.gerry.directory, self.gerry.name, 'changes', '2018-06-01'),
+                                  os.path.join(self.gerry.directory, self.gerry.name, 'changes', '2018-06-02')]
+        mock_listdir.return_value = False
+
+        self.gerry.run()
+        mock_get_change.assert_any_call(109611)  # valid change number from 2018-06-01
+        mock_get_change.assert_any_call(181990)  # valid change number from 2018-06-02
+
 
 if __name__ == '__main__':
     unittest.main()
