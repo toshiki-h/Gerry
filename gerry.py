@@ -48,6 +48,12 @@ class Gerry(object):
         self.end_date = end_date
         os.makedirs(self.directory, exist_ok=True)
 
+    def wait_for_server(status_code):
+        # https://cloud.google.com/service-control/troubleshooting#how_do_i_perform_a_retry_on_api_errors
+        GOOGLE_SERVER_WAITING_TIME = {429: 31, 500: 1, 503: 1}
+        if status_code in GOOGLE_SERVER_WAITING_TIME:
+            time.sleep(GOOGLE_SERVER_WAITING_TIME[status_code])
+
     def get_changes(self, day):
         from_datetime = day
         to_datetime = from_datetime + \
@@ -61,14 +67,9 @@ class Gerry(object):
             url = '%s/changes/?q=after:{%s} AND before:{%s} AND is:closed&S=%i' % (
                 self.url, datetime_to_string(from_datetime), datetime_to_string(to_datetime), offset)
             response = requests.get(url)
+            response.raise_for_status()
 
-            if response and response.status_code >= 200 and response.status_code < 300:
-                changes_subset = json.loads(response.text[5:])
-            else:
-                if response.status_code == 429:
-                    time.sleep(10)
-                raise HTTPError(response.status_code)
-
+            changes_subset = json.loads(response.text[5:])
             if changes_subset:
                 more_changes = '_more_changes' in changes_subset[-1]
                 changes += changes_subset
@@ -84,15 +85,29 @@ class Gerry(object):
             url += '&o=REVIEWER_UPDATES'
 
         response = requests.get(url)
-        if response and response.status_code >= 200 and response.status_code < 300:
-            change = json.loads(response.text[5:])
-            file_name = str(change_number) + '.json'
-            with open(os.path.join(folder, file_name), 'w') as json_file:
-                json.dump(change, json_file)
-        else:
-            if response.status_code == 429:
-                time.sleep(10)
-            raise HTTPError(response.status_code)
+        response.raise_for_status()
+
+        change = json.loads(response.text[5:])
+        file_name = str(change_number) + '.json'
+        with open(os.path.join(folder, file_name), 'w') as json_file:
+            json.dump(change, json_file)
+
+    def handle_exception(exception, change_type):
+        if isinstance(exception, requests.exceptions.RequestException):
+            if exception.response != None:
+                log.error('GET %s failed with http status %i' % (
+                    change_type, exception.response.status_code))
+                Gerry.wait_for_server(
+                    exception.response.status_code)
+            else:
+                log.error('GET %s %s failed with error: %s' % (change_type,
+                                                              exception))
+        elif isinstance(exception, json.JSONDecodeError):
+            log.error(
+                'Reading JSON for %s failed' % (change_type))
+        elif isinstance(exception, Exception):
+            log.error('Unknown error occurred for %s %s: %s' % (change_type,
+                                                                exception))
 
     def run(self):
         for time_frame in create_time_frames(self.start_date, self.end_date, datetime.timedelta(hours=24)):
@@ -105,7 +120,7 @@ class Gerry(object):
         complete = False
 
         while not complete:
-            complete = True  # oh miss you, do...while loop
+            complete = True
             day_paths_pending = [
                 day_path for day_path in all_day_paths if not os.listdir(day_path)]
 
@@ -116,17 +131,12 @@ class Gerry(object):
                 change_numbers = []
                 changes = []
 
-                day = datetime.datetime.strptime(os.path.split(day_path)[1], '%Y-%m-%d')
+                day = datetime.datetime.strptime(
+                    os.path.split(day_path)[1], '%Y-%m-%d')
                 try:
                     changes = self.get_changes(day)
                 except Exception as exception:
-                    if isinstance(exception, requests.exceptions.RequestException):
-                        log.error('GET changes for day %s failed' % (day))
-                    elif isinstance(exception, json.JSONDecodeError):
-                        log.error('Reading JSON for changes %s failed' % (day))
-                    elif isinstance(exception, Exception):
-                        log.error(
-                            'Unknown error occurred for day %s: %s' % (day, e))
+                    Gerry.handle_exception(exception, ('changes on %s' % day))
                     complete = False
 
                 change_numbers += [change['_number'] for change in changes]
@@ -135,14 +145,7 @@ class Gerry(object):
                     try:
                         self.get_change(change_number)
                     except Exception as exception:
-                        if isinstance(exception, requests.exceptions.RequestException):
-                            log.error('GET change %s failed' % (change_number))
-                        elif isinstance(exception, json.JSONDecodeError):
-                            log.error(
-                                'Reading JSON for changes %s failed' % (change_number))
-                        elif isinstance(exception, Exception):
-                            log.error('Unknown error occurred for change %s: %s' % (
-                                change_number, exception))
+                        Gerry.handle_exception(exception, ('change %s' % change_number))
                         complete = False
 
 
