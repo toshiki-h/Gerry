@@ -79,7 +79,7 @@ class Gerry(object):
 
     def get_change(self, change_number):
         url = '%s/changes/%s/detail/?o=DETAILED_LABELS&o=MESSAGES&o=DETAILED_ACCOUNTS&o=REVIEWED&o=ALL_FILES&o=ALL_COMMITS&o=ALL_REVISIONS' % (
-                    self.url, change_number)
+            self.url, change_number)
         if self.name != 'libreoffice':
             url += '&o=REVIEWER_UPDATES'
 
@@ -94,7 +94,6 @@ class Gerry(object):
                 time.sleep(10)
             raise HTTPError(response.status_code)
 
-
     def run(self):
         for time_frame in create_time_frames(self.start_date, self.end_date, datetime.timedelta(hours=24)):
             day_str = time_frame[0].strftime('%Y-%m-%d')
@@ -106,8 +105,12 @@ class Gerry(object):
         complete = False
 
         while completed:
-            complete = True # oh miss you, do...while loop
-            empty_folders = [folder for folder in all_folders if os.listdir(folder)]
+            complete = True  # oh miss you, do...while loop
+            empty_folders = [
+                folder for folder in all_folders if os.listdir(folder)]
+
+            log.info(
+                'Started new crawl iteration to crawl %i pending days' % (empty_folders))
 
             for folder in tqdm.tqdm(empty_folders):
                 change_numbers = []
@@ -117,27 +120,30 @@ class Gerry(object):
                 day = datetime.datetime.strptime(day_string, '%Y-%m-%d')
                 try:
                     changes = self.get_changes(day)
-                except Exception as exception:            
-                    if isinstance(exception, ConnectionError):
+                except Exception as exception:
+                    if isinstance(exception, requests.exceptions.RequestException):
                         log.error('GET changes for day %s failed' % (day))
                     elif isinstance(exception, json.JSONDecodeError):
                         log.error('Reading JSON for changes %s failed' % (day))
-                    elif isinstance(exception, Exception): 
-                        log.error('Unknown error occurred for day %s: %s' % (day, e))
+                    elif isinstance(exception, Exception):
+                        log.error(
+                            'Unknown error occurred for day %s: %s' % (day, e))
                     complete = False
-                                       
+
                 change_numbers += [change['_number'] for change in changes]
 
                 for change_number in change_numbers:
                     try:
                         self.get_change(change_number)
                     except Exception as exception:
-                        if isinstance(exception, ConnectionError):
+                        if isinstance(exception, requests.exceptions.RequestException):
                             log.error('GET change %s failed' % (change_number))
                         elif isinstance(exception, json.JSONDecodeError):
-                            log.error('Reading JSON for changes %s failed' % (change_number))
+                            log.error(
+                                'Reading JSON for changes %s failed' % (change_number))
                         elif isinstance(exception, Exception):
-                            log.error('Unknown error occurred for change %s: %s' % (change_number, exception))
+                            log.error('Unknown error occurred for change %s: %s' % (
+                                change_number, exception))
                         complete = False
 
 
@@ -166,7 +172,7 @@ if __name__ == '__main__':
     os.makedirs(args.directory, exist_ok=True)
 
     gerry = Gerry(args.gerry_instance, data[args.gerry_instance]['url'],
-                                 data[args.gerry_instance]['start_datetime'], datetime.datetime(2018, 7, 1), args.directory)
+                  data[args.gerry_instance]['start_datetime'], datetime.datetime(2018, 7, 1), args.directory)
     config_logging(gerry.directory)
 
     gerry.run()
