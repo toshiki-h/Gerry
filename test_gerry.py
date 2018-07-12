@@ -37,8 +37,8 @@ class GerryCrawler(unittest.TestCase):
     @patch('os.makedirs')
     def setUp(self, mock_makedirs):
         mock_makedirs.return_value = True
-        self.gerry = gerry.GerryCrawler('gerrit', 'https://gerrit-review.googlesource.com',
-                                        datetime.datetime(2018, 6, 1), datetime.datetime(2018, 6, 2), './gerry_data/')
+        self.gerry = gerry.Gerry('gerrit', 'https://gerrit-review.googlesource.com',
+                                 datetime.datetime(2018, 6, 1), datetime.datetime(2018, 6, 2), './gerry_data/')
 
     def test_get_changes(self):
         changes = self.gerry.get_changes(datetime.datetime.strptime('2018-06-01', '%Y-%m-%d'))
@@ -48,7 +48,6 @@ class GerryCrawler(unittest.TestCase):
     def test_get_changes_no_data(self):
         changes = self.gerry.get_changes(datetime.datetime.strptime('5018-06-01', '%Y-%m-%d'))
         self.assertEqual(len(changes), 0)
-
 
 if __name__ == '__main__':
     unittest.main()
