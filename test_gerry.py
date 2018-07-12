@@ -50,6 +50,7 @@ class Gerry(unittest.TestCase):
         changes = self.gerry.get_changes(datetime.datetime.strptime('5018-06-01', '%Y-%m-%d'))
         self.assertEqual(len(changes), 0)
 
+
     @patch('os.makedirs')
     @patch('glob.glob')
     @patch('os.listdir')
@@ -61,8 +62,8 @@ class Gerry(unittest.TestCase):
         mock_listdir.return_value = False
 
         self.gerry.run()
-        mock_get_change.assert_any_call(109611)  # valid change number from 2018-06-01
-        mock_get_change.assert_any_call(181990)  # valid change number from 2018-06-02
+        mock_get_change.assert_any_call(109611, mock_glob.return_value[0])  # valid change number from 2018-06-01
+        mock_get_change.assert_any_call(181990, mock_glob.return_value[1])  # valid change number from 2018-06-02
 
 
 if __name__ == '__main__':
