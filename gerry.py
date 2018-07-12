@@ -136,7 +136,7 @@ class Gerry(object):
                 try:
                     changes = self.get_changes(day)
                 except Exception as exception:
-                    Gerry.handle_exception(exception, 'changes on %s' % (day))
+                    Gerry.handle_exception(exception, 'changes on %s' % day)
                     complete = False
 
                 change_numbers += [change['_number'] for change in changes]
@@ -146,7 +146,7 @@ class Gerry(object):
                         self.get_change(change_number)
                     except Exception as exception:
                         Gerry.handle_exception(
-                            exception, 'change %s' % (change_number))
+                            exception, 'change %i' % change_number)
                         complete = False
 
 
