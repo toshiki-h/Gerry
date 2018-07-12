@@ -95,7 +95,7 @@ class Gerry(object):
             offset += len(changes_subset)
         return changes
 
-    def get_change(self, change_number):
+    def get_change(self, change_number, to_folder):
         url = '%s/changes/%s/detail/?o=DETAILED_LABELS&o=MESSAGES&o=DETAILED_ACCOUNTS&o=REVIEWED&o=ALL_FILES&o=ALL_COMMITS&o=ALL_REVISIONS' % (
             self.url, change_number)
         if self.name != 'libreoffice':
@@ -143,7 +143,7 @@ class Gerry(object):
 
                 for change_number in change_numbers:
                     try:
-                        self.get_change(change_number)
+                        self.get_change(change_number, day_path)
                     except Exception as exception:
                         Gerry.handle_exception(
                             exception, 'change %i' % change_number)
