@@ -40,7 +40,8 @@ def datetime_to_string(date):
 
 
 class Gerry(object):
-    def __init__(self, name, url, start_date, end_date, directory='./gerry_data/'):
+    def __init__(self, name, url, start_date, end_date,
+                 directory='./gerry_data/'):
         self.name = name
         self.url = url
         self.directory = os.path.join(directory, name)
@@ -56,7 +57,7 @@ class Gerry(object):
 
     def handle_exception(exception, change_type):
         if isinstance(exception, requests.exceptions.RequestException):
-            if exception.response != None:
+            if exception.response is not None:
                 log.error('GET %s failed with http status %i' % (
                     change_type, exception.response.status_code))
                 Gerry.wait_for_server(
@@ -110,7 +111,8 @@ class Gerry(object):
             json.dump(change, json_file)
 
     def run(self):
-        for time_frame in create_time_frames(self.start_date, self.end_date, datetime.timedelta(hours=24)):
+        for time_frame in create_time_frames(
+                self.start_date, self.end_date, datetime.timedelta(hours=24)):
             day_str = time_frame[0].strftime('%Y-%m-%d')
             os.makedirs(os.path.join(self.directory,
                                      'changes', day_str), exist_ok=True)
@@ -136,7 +138,7 @@ class Gerry(object):
                 try:
                     changes = self.get_changes(day)
                 except Exception as exception:
-                    Gerry.handle_exception(exception, 'changes on '+str(day))
+                    Gerry.handle_exception(exception, 'changes on ' + str(day))
                     complete = False
 
                 change_numbers += [change['_number'] for change in changes]
@@ -146,7 +148,7 @@ class Gerry(object):
                         self.get_change(change_number, day_path)
                     except Exception as exception:
                         Gerry.handle_exception(
-                            exception, 'change '+str(change_number))
+                            exception, 'change ' + str(change_number))
                         complete = False
 
 

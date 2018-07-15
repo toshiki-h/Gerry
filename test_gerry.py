@@ -42,12 +42,15 @@ class Gerry(unittest.TestCase):
                                  datetime.datetime(2018, 6, 1), datetime.datetime(2018, 6, 2), './gerry_data/')
 
     def test_get_changes(self):
-        changes = self.gerry.get_changes(datetime.datetime.strptime('2018-06-01', '%Y-%m-%d'))
+        changes = self.gerry.get_changes(
+            datetime.datetime.strptime('2018-06-01', '%Y-%m-%d'))
         self.assertEqual(len(changes), 21)
-        self.assertEqual(changes[0]['change_id'], 'Ib051dd347eaea2c77ae6c403ebf76bed4b9b4b9c')
+        self.assertEqual(changes[0]['change_id'],
+                         'Ib051dd347eaea2c77ae6c403ebf76bed4b9b4b9c')
 
     def test_get_changes_no_data(self):
-        changes = self.gerry.get_changes(datetime.datetime.strptime('5018-06-01', '%Y-%m-%d'))
+        changes = self.gerry.get_changes(
+            datetime.datetime.strptime('5018-06-01', '%Y-%m-%d'))
         self.assertEqual(len(changes), 0)
 
     @patch('json.dump')
@@ -55,21 +58,25 @@ class Gerry(unittest.TestCase):
     def test_get_change(self, mock_file, mock_dump):
         self.gerry.get_change(109611, 'folder')
         mock_file.assert_any_call(os.path.join('folder', '109611.json'), 'w')
-        self.assertEqual(mock_dump.call_args[0][0]['change_id'], 'Ic7bc5ad2e57eef27b0d2e13523be78e8a2d0a65c')
+        self.assertEqual(
+            mock_dump.call_args[0][0]['change_id'], 'Ic7bc5ad2e57eef27b0d2e13523be78e8a2d0a65c')
 
     @patch('os.makedirs')
     @patch('glob.glob')
     @patch('os.listdir')
     @patch('gerry.Gerry.get_change')
-    def test_run(self, mock_get_change, mock_listdir, mock_glob, mock_makedirs):
+    def test_run(self, mock_get_change, mock_listdir,
+                 mock_glob, mock_makedirs):
         mock_makedirs.return_value = True
         mock_glob.return_value = [os.path.join(self.gerry.directory, self.gerry.name, 'changes', '2018-06-01'),
                                   os.path.join(self.gerry.directory, self.gerry.name, 'changes', '2018-06-02')]
         mock_listdir.return_value = False
 
         self.gerry.run()
-        mock_get_change.assert_any_call(109611, mock_glob.return_value[0])  # valid change number from 2018-06-01
-        mock_get_change.assert_any_call(181990, mock_glob.return_value[1])  # valid change number from 2018-06-02
+        # valid change number from 2018-06-01
+        mock_get_change.assert_any_call(109611, mock_glob.return_value[0])
+        # valid change number from 2018-06-02
+        mock_get_change.assert_any_call(181990, mock_glob.return_value[1])
 
 
 if __name__ == '__main__':
