@@ -8,6 +8,7 @@ install:
 
 script:
  - python -m unittest
+ - coverage run test_gerry.py
   
 after_success:
   - codecov
