@@ -13,7 +13,7 @@
 
 - [Installation](#installation)
 - [Usage](#usage)
-- [Gerrit API] (#API)
+- [Gerrit API] (#api)
 - [Contributions](#contributions)
 - [Versions](#versions)
 - [License](#license)
