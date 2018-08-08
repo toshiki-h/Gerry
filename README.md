@@ -7,13 +7,13 @@
 
 > Gerry is a small utility written in Python to crawl Gerrit review instances. 
 
-> **This project is currently under development. Tests and a neat README is to com.e Please be patient with me. :)**
+> **This project is currently under development. Tests and a neat README is to come. Please be patient with me. :)**
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Usage](#usage)
-- [Gerrit API] (#gerritapi)
+- [Gerrit API] (#API)
 - [Contributions](#contributions)
 - [Versions](#versions)
 - [License](#license)
@@ -23,6 +23,9 @@
 tbd
 
 ## Usage
+tbd
+
+## API
 tbd
 
 ## Discussion
