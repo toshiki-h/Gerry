@@ -1,10 +1,20 @@
+
+# coding: utf-8
+
+# In[1]:
+
+
 import pymongo, time, logging
 import requests, json, sys
 from multiprocessing import Pool
 from multiprocessing.dummy import Pool as ThreadPool
 import pprint
 
-db_name = 'qt_20180801_content'
+
+# In[2]:
+
+
+db_name = 'qt_20180801'
 base_url = 'https://codereview.qt-project.org/'
 multiThread_cpu_num = 36
 ACCEPTABLE_ERROR = 10
@@ -36,24 +46,6 @@ def replaceMongodbInvalidLetter(jsons):
     return jsons_replaced
 
 ###
-def crawl_content(reviewIdNum, latestPatchSetNum):
-    revisions = {}
-    for rev_num in range(1, latestPatchSetNum+1):
-        crawl_files_url = base_url + "changes/%s/revisions/%s/files" % (reviewIdNum, rev_num)
-        fileList_data = requests.get(crawl_files_url)
-        fileList_json = json.loads(fileList_data.text[5:])
-        if len(fileList_json.keys()) < 1:
-            continue
-        for f_name in fileList_json:
-            http_filename = urllib.quote_plus(f_name)
-            crawl_content_url = base_url + "changes/%s/revisions/%s/files/%s/content" % (reviewIdNum, rev_num, http_filename)
-            content_data = requests.get(crawl_content_url)
-            content_text = content_data.text
-            assert('content' not in fileList_json[f_name].keys())
-            fileList_json[f_name]['content'] = base64.b64decode(content_text)
-        revisions[rev_num] = fileList_json
-    return {"_number":reviewIdNum, "revisions": revisions}
-
 def crawl_detail(reviewIdNum, latestPatchSetNum):
     global connection_error
     crawl_url_detail = base_url + "changes/%s/detail" % reviewIdNum
